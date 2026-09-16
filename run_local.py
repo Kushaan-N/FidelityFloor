@@ -68,7 +68,12 @@ def main():
         out = {"summary_path": str(p),
                "per_condition_keys": list(summary["per_condition"].keys())}
 
-    print(json.dumps(out, indent=2, default=str))
+    import sys
+
+    print(json.dumps(out, indent=2, default=str), flush=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    # kit's close() can exit the process without flushing Python buffers
     from fidelityfloor.envs import close_sim_app
 
     close_sim_app()
