@@ -55,7 +55,13 @@ def _cache_key(model: str, prompt: str, images: list[bytes], repeat: int = 0) ->
 
 
 class VLMClient:
+    """Provider-agnostic scorer. cfg['vlm']['provider']: 'anthropic' (default)
+    or 'gemini' (free-tier friendly; key from Google AI Studio as GEMINI_API_KEY).
+    The cache key includes the model name, so switching providers never mixes
+    or invalidates cached responses."""
+
     def __init__(self, cfg: dict, cache_dir: Path | None = None):
+        self.provider = cfg["vlm"].get("provider", "anthropic")
         self.model = cfg["vlm"]["model"]
         self.max_tokens = cfg["vlm"]["max_tokens"]
         self.cache_dir = Path(cache_dir) if cache_dir else vlm_cache_dir()
@@ -81,6 +87,21 @@ class VLMClient:
             except Exception:
                 pass  # corrupt cache entry -> refetch
 
+        t0 = time.time()
+        if self.provider == "gemini":
+            out = self._call_gemini(prompt, images, schema)
+        else:
+            out = self._call_anthropic(prompt, images, schema)
+        self.n_billed_calls += 1
+        out.setdefault("_meta", {})
+        out["_meta"]["model"] = self.model
+        out["_meta"]["latency_s"] = round(time.time() - t0, 3)
+        from .io_utils import atomic_write_json
+
+        atomic_write_json(cpath, out)
+        return out
+
+    def _call_anthropic(self, prompt: str, images: list[bytes], schema: dict) -> dict:
         content = [
             {
                 "type": "image",
@@ -93,28 +114,63 @@ class VLMClient:
             for im in images
         ]
         content.append({"type": "text", "text": prompt})
-
-        t0 = time.time()
         resp = self.client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
             output_config={"format": {"type": "json_schema", "schema": schema}},
             messages=[{"role": "user", "content": content}],
         )
-        self.n_billed_calls += 1
         text = next(b.text for b in resp.content if b.type == "text")
         out = json.loads(text)
         out["_meta"] = {
-            "model": self.model,
-            "latency_s": round(time.time() - t0, 3),
             "input_tokens": resp.usage.input_tokens,
             "output_tokens": resp.usage.output_tokens,
             "stop_reason": resp.stop_reason,
         }
-        from .io_utils import atomic_write_json
-
-        atomic_write_json(cpath, out)
         return out
+
+    def _call_gemini(self, prompt: str, images: list[bytes], schema: dict) -> dict:
+        """Gemini REST (generateContent) with JSON schema output. Retries 429/5xx
+        with backoff — the free tier is ~10 RPM, and the content-hash cache means
+        every response is only ever paid for (or waited for) once."""
+        import urllib.error
+        import urllib.request
+
+        api_key = os.environ["GEMINI_API_KEY"]
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+               f"{self.model}:generateContent")
+        parts = [{"inline_data": {"mime_type": "image/png",
+                                  "data": base64.standard_b64encode(im).decode()}}
+                 for im in images]
+        parts.append({"text": prompt})
+        body = json.dumps({
+            "contents": [{"parts": parts}],
+            "generationConfig": {
+                "maxOutputTokens": self.max_tokens,
+                "responseMimeType": "application/json",
+                "responseJsonSchema": schema,
+            },
+        }).encode()
+        last_err = None
+        for attempt in range(6):
+            req = urllib.request.Request(
+                url, data=body,
+                headers={"Content-Type": "application/json",
+                         "x-goog-api-key": api_key})
+            try:
+                with urllib.request.urlopen(req, timeout=120) as r:
+                    resp = json.loads(r.read().decode())
+                text = resp["candidates"][0]["content"]["parts"][0]["text"]
+                out = json.loads(text)
+                out["_meta"] = {"usage": resp.get("usageMetadata", {})}
+                return out
+            except urllib.error.HTTPError as e:
+                last_err = f"HTTP {e.code}: {e.read()[:300]}"
+                if e.code in (429, 500, 503):
+                    time.sleep(min(60, 5 * 2 ** attempt))
+                    continue
+                raise RuntimeError(f"Gemini call failed: {last_err}") from e
+        raise RuntimeError(f"Gemini call failed after retries: {last_err}")
 
     # ------------------------------------------------------------ public API
     def score_outcome(self, final_frame_png: bytes, repeat: int = 0) -> dict:
@@ -134,5 +190,8 @@ class VLMClient:
         return self._call_json(prompt, images, ANSWER_SCHEMA, repeat)
 
 
-def have_api_key() -> bool:
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+def have_api_key(cfg: dict | None = None) -> bool:
+    provider = (cfg or {}).get("vlm", {}).get("provider", "anthropic")
+    var = "GEMINI_API_KEY" if provider == "gemini" else "ANTHROPIC_API_KEY"
+    key = os.environ.get(var, "")
+    return bool(key) and not key.startswith("placeholder")
