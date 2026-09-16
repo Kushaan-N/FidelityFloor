@@ -1,0 +1,80 @@
+# FidelityFloor — degradation axes, severities, seeds, grid sizes.
+# Severity knobs are inputs; MEASURED induced error (stats.induced_error) is the x-axis.
+
+seed: 20260916
+
+rollout:
+  control_dt: 0.1          # 10 Hz action chunks
+  physics_dt: 0.0166667    # 60 Hz PhysX substeps (6 per control step)
+  horizon_steps: 40        # 4.0 s episodes
+  settle_steps: 12         # physics steps after teleporting bodies, before t=0
+  frame_every: 8           # capture a frame every k control steps (+ final frame always)
+
+workspace:
+  cube_half: 0.025         # 5 cm cube
+  pusher_radius: 0.02
+  pusher_height: 0.08
+  cube_xy_range: 0.15      # cube start uniform in [-r, r]^2
+  goal_dist_min: 0.18
+  goal_dist_max: 0.30
+  pusher_dist_min: 0.10
+  pusher_dist_max: 0.18
+  pusher_angle_jitter_deg: 40.0   # pusher placed opposite goal +/- jitter
+  max_speed: 0.25          # m/s clamp on all commanded velocities
+
+candidates:
+  k: 12                    # 1 expert + 8 graded perturbations + 3 random
+  expert_approach_speed: 0.20
+  expert_push_speed: 0.12
+  perturb_rot_deg: [10, -10, 20, -20, 35, -35]
+  perturb_speed_scale: [0.6, 1.4]
+  n_random: 3
+  spread_min_iqr_frac: 0.30   # G4: IQR of GT utilities > this * expert utility
+
+tier2:
+  n_states_full: 30
+  n_states_pilot: 5        # P1
+  n_states_rehearsal: 3    # P2
+
+tier1:
+  n_scenes: 20
+  questions_per_scene: 5
+  n_objects_min: 5
+  n_objects_max: 7
+  orbit_deg: 30.0          # imagined views at +/- orbit around the scene
+  # conditions: identity, obs_corruption x3, viewpoint miscalibration x2 (+2 anchors)
+  viewpoint_miscalibration_deg: [10.0, 25.0]
+
+axes:
+  miscalibration:          # A' = scale * R(rot) @ A  (systematic)
+    severities:
+      "1": {scale: 1.05, rot_deg: 5.0}
+      "2": {scale: 1.15, rot_deg: 15.0}
+      "3": {scale: 1.30, rot_deg: 30.0}
+  dyn_noise:               # A' = A + N(0, sigma^2) per step (zero-mean stochastic)
+    severities:
+      "1": {sigma: 0.02}
+      "2": {sigma: 0.05}
+      "3": {sigma: 0.12}
+  obs_corruption:          # post-hoc on rendered frames; no re-simulation
+    severities:
+      "1": {blur: 1.0, noise: 0.02, jpeg_q: 60, flicker: 0.05}
+      "2": {blur: 2.5, noise: 0.06, jpeg_q: 35, flicker: 0.12}
+      "3": {blur: 5.0, noise: 0.15, jpeg_q: 15, flicker: 0.25}
+  horizon:                 # truncate imagined rollout to this fraction of T
+    severities:
+      "1": {fraction: 0.75}
+      "2": {fraction: 0.50}
+      "3": {fraction: 0.25}
+
+vlm:
+  model: claude-opus-4-8   # scorer; swap to claude-haiku-4-5 to cut VLM cost ~5x
+  max_tokens: 300
+  score_repeats_subset: 5  # states on which VLM scoring is repeated 2x (scorer noise bound)
+
+stats:
+  bootstrap_resamples: 2000
+
+determinism:
+  n_states: 20             # replay-floor measurement (P0)
+  floor_max_frac_of_mildest: 0.10   # gate: floor < 10% of mildest condition's induced error
