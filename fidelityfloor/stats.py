@@ -56,11 +56,17 @@ def induced_error(cfg: dict, cond: Condition, state_ids: list[int]) -> dict:
             d = state_distance(g, m)
             mean_matched.append(d["mean_matched"])
             final.append(d["final"])
+    em = float(np.mean(mean_matched)) if mean_matched else np.nan
+    ef = float(np.mean(final)) if final else np.nan
     return {
         "condition": cond.cid,
         "n_pairs": len(mean_matched),
-        "err_mean_matched": float(np.mean(mean_matched)) if mean_matched else np.nan,
-        "err_final": float(np.mean(final)) if final else np.nan,
+        "err_mean_matched": em,
+        "err_final": ef,
+        # x-axis metric: horizon's imagined trajectory is an identical PREFIX of
+        # GT (deterministic sim), so its matched-step error is 0 by construction;
+        # its induced error is where the imagination STOPS vs where GT ends.
+        "err_xaxis": ef if cond.axis == "horizon" else em,
         "err_std_over_pairs": float(np.std(mean_matched)) if mean_matched else np.nan,
     }
 
@@ -140,7 +146,7 @@ def matched_error_comparison(cfg: dict, rows: list[dict], errors: dict[str, dict
         for s in sevs:
             cid = f"{axis}-{s}"
             rr = [r for r in rows if r["condition"] == cid]
-            errs.append(errors[cid]["err_mean_matched"])
+            errs.append(errors[cid]["err_xaxis"])
             utils.append(float(np.mean([r[metric] for r in rr])))
             per_state.append({r["state_id"]: r[metric] for r in rr})
         return np.array(errs), np.array(utils), per_state
