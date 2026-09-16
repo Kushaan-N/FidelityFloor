@@ -147,6 +147,8 @@ def matched_error_comparison(cfg: dict, rows: list[dict], errors: dict[str, dict
 
     e_m, u_m, ps_m = axis_curve("miscalibration")
     e_n, u_n, ps_n = axis_curve("dyn_noise")
+    if len(e_m) == 0 or len(e_n) == 0:
+        return {"overlap": False, "note": "miscalibration/dyn_noise not yet run"}
     lo = max(e_m.min(), e_n.min())
     hi = min(e_m.max(), e_n.max())
     if hi <= lo:
