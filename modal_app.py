@@ -88,29 +88,12 @@ cpu_image = (
 _retries = modal.Retries(max_retries=3, backoff_coefficient=2.0, initial_delay=10.0)
 
 
-def _existing_vlm_secrets() -> list:
-    """Attach whichever VLM API secrets exist ('gemini-api-key' with GEMINI_API_KEY,
-    'anthropic-api-key' with ANTHROPIC_API_KEY), so the sim stages run before any
-    key is provisioned. Evaluated locally at deploy time only."""
-    if not modal.is_local():
-        return []
-    found = []
-    for name in ("gemini-api-key", "anthropic-api-key"):
-        try:
-            s = modal.Secret.from_name(name)
-            s.hydrate()
-            found.append(s)
-        except Exception:
-            pass
-    if not found:
-        print("NOTE: no VLM API secret found (gemini-api-key / anthropic-api-key) — "
-              "VLM stages will be skipped until one exists. Free option: "
-              "https://aistudio.google.com key, then "
-              "`modal secret create gemini-api-key GEMINI_API_KEY=...`")
-    return found
-
-
-_vlm_secrets = _existing_vlm_secrets()
+# VLM secret(s). Must be defined UNCONDITIONALLY — a list that differs between
+# local deploy and in-container import makes the function crash-loop with
+# "Function has N dependencies but container got M object ids" (P0 lesson).
+# Switching vlm.provider to 'anthropic' requires creating 'anthropic-api-key'
+# and appending modal.Secret.from_name("anthropic-api-key") here.
+_vlm_secrets = [modal.Secret.from_name("gemini-api-key")]
 
 
 def _cfgs():
