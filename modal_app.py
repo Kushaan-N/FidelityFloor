@@ -366,6 +366,12 @@ def p0():
 
 
 @app.local_entrypoint()
+def vlm_smoke():
+    """One VLM round-trip (synthetic image if no rendered frames on the volume)."""
+    print(vlm_smoke_remote.remote())
+
+
+@app.local_entrypoint()
 def determinism():
     """§3.1: replay-determinism floor over 20 states."""
     r = determinism_remote.remote()
