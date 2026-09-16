@@ -88,22 +88,29 @@ cpu_image = (
 _retries = modal.Retries(max_retries=3, backoff_coefficient=2.0, initial_delay=10.0)
 
 
-def _anthropic_secrets() -> list:
-    """Attach the VLM API secret only if it exists, so the sim stages run before
-    any key is provisioned. Evaluated locally at deploy time only."""
+def _existing_vlm_secrets() -> list:
+    """Attach whichever VLM API secrets exist ('gemini-api-key' with GEMINI_API_KEY,
+    'anthropic-api-key' with ANTHROPIC_API_KEY), so the sim stages run before any
+    key is provisioned. Evaluated locally at deploy time only."""
     if not modal.is_local():
         return []
-    try:
-        s = modal.Secret.from_name("anthropic-api-key")
-        s.hydrate()
-        return [s]
-    except Exception:
-        print("NOTE: Modal secret 'anthropic-api-key' not found — VLM stages will "
-              "be skipped until you create it (any provider key; see vlm.py).")
-        return []
+    found = []
+    for name in ("gemini-api-key", "anthropic-api-key"):
+        try:
+            s = modal.Secret.from_name(name)
+            s.hydrate()
+            found.append(s)
+        except Exception:
+            pass
+    if not found:
+        print("NOTE: no VLM API secret found (gemini-api-key / anthropic-api-key) — "
+              "VLM stages will be skipped until one exists. Free option: "
+              "https://aistudio.google.com key, then "
+              "`modal secret create gemini-api-key GEMINI_API_KEY=...`")
+    return found
 
 
-_vlm_secrets = _anthropic_secrets()
+_vlm_secrets = _existing_vlm_secrets()
 
 
 def _cfgs():
@@ -230,18 +237,14 @@ def vlm_smoke_remote() -> dict:
     """One VLM call round-trip against the smoke-test frame (P0 requirement)."""
     from pathlib import Path
 
-    import os
-
     from fidelityfloor.config import out_root
-    from fidelityfloor.vlm import VLMClient
+    from fidelityfloor.vlm import VLMClient, have_api_key
 
-    key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not key or key.startswith("placeholder"):
-        return {"skipped": "no real VLM API key yet — replace the placeholder with "
-                           "`modal secret create --force anthropic-api-key "
-                           "ANTHROPIC_API_KEY=...` (or swap vlm.py to another provider) "
-                           "before P2's VLM pass"}
     cfg, _ = _cfgs()
+    if not have_api_key(cfg):
+        return {"skipped": "no VLM API key for the configured provider — create the "
+                           "Modal secret (gemini-api-key / anthropic-api-key) before "
+                           "P2's VLM pass"}
     frames = sorted(Path(out_root(cfg) / "smoke" / "gt_rollout" / "frames").glob("*.png"))
     if not frames:
         return {"error": "no smoke frames on volume — run p0's GPU half first"}
