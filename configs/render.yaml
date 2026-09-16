@@ -3,9 +3,10 @@
 width: 640
 height: 480
 renderer: RaytracedLighting   # RTX real-time; NOT path tracing (grain risk)
-# Camera: fixed 3/4 view onto the workspace
+# Camera: fixed 3/4 view onto the workspace (chosen at P0 by contact-sheet
+# inspection on Unity L40S, 2026-09-16 — pose "B" of the sweep)
 camera:
-  position: [0.65, 0.0, 0.55]
+  position: [0.85, 0.0, 0.80]
   target: [0.0, 0.0, 0.0]
   focal_length: 18.0
 warmup_render_steps: 8        # render ticks before first captured frame (denoiser settle)
