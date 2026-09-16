@@ -39,6 +39,18 @@ def start_sim_app(render_cfg: dict):
     return _SIM_APP
 
 
+def close_sim_app() -> None:
+    """Explicitly shut down kit — otherwise Python teardown segfaults at exit
+    (cosmetic but corrupts SLURM/Modal exit codes)."""
+    global _SIM_APP
+    if _SIM_APP is not None:
+        try:
+            _SIM_APP.close()
+        except Exception:
+            pass
+        _SIM_APP = None
+
+
 class PushEnv:
     CUBE_PATH = "/World/cube"
     PUSHER_PATH = "/World/pusher"
@@ -138,17 +150,13 @@ class PushEnv:
 
     # ------------------------------------------------------------------ camera
     def _aim_camera(self, position: np.ndarray, target: np.ndarray) -> None:
-        """Point the camera at `target` (USD cameras look down -Z)."""
-        from isaacsim.core.utils.rotations import euler_angles_to_quat
+        """Point the camera at `target` using Isaac's look-at helper (hand-rolled
+        quaternions produced a sky-gazing camera — P0 blank-frame bug)."""
+        from isaacsim.core.utils.viewports import set_camera_view
 
-        fwd = target - position
-        fwd = fwd / np.linalg.norm(fwd)
-        yaw = np.arctan2(fwd[1], fwd[0])
-        pitch = np.arcsin(-fwd[2])
-        # Camera convention: rotate so -Z looks along fwd, +Y up-ish.
-        quat = euler_angles_to_quat(np.array([0.0, pitch + np.pi / 2, yaw]), degrees=False,
-                                    extrinsic=False)
-        self.camera.set_world_pose(position=position, orientation=quat)
+        set_camera_view(eye=np.asarray(position, dtype=np.float64),
+                        target=np.asarray(target, dtype=np.float64),
+                        camera_prim_path="/World/camera")
 
     def set_camera_pose(self, position: np.ndarray, target: np.ndarray) -> None:
         self._aim_camera(np.asarray(position, dtype=np.float64),
