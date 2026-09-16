@@ -1,0 +1,11 @@
+# Fixed render settings, project-wide. Chosen once at P0 by inspecting a contact
+# sheet (G4) and then NEVER varied — noisy frames read as corruption severity > 0.
+width: 640
+height: 480
+renderer: RaytracedLighting   # RTX real-time; NOT path tracing (grain risk)
+# Camera: fixed 3/4 view onto the workspace
+camera:
+  position: [0.65, 0.0, 0.55]
+  target: [0.0, 0.0, 0.0]
+  focal_length: 18.0
+warmup_render_steps: 8        # render ticks before first captured frame (denoiser settle)
