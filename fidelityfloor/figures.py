@@ -43,11 +43,10 @@ def fig_utility_vs_error(summary: dict, out_dir: Path, mode: str = "state",
         for cid, entry in per.items():
             if not cid.startswith(axis + "-") or key not in entry:
                 continue
-            err_key = "err_final" if axis == "obs_corruption" else "err_mean_matched"
             # obs_corruption has no state-space error; skip it on state-scored plots
             if axis == "obs_corruption" and mode == "state":
                 continue
-            e = entry["induced_error"]["err_mean_matched"]
+            e = entry["induced_error"]["err_xaxis"]
             m = entry[key]
             pts.append((e, m["mean"], m["lo"], m["hi"]))
         if not pts:
