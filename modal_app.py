@@ -246,10 +246,27 @@ def vlm_smoke_remote() -> dict:
                            "Modal secret (gemini-api-key / anthropic-api-key) before "
                            "P2's VLM pass"}
     frames = sorted(Path(out_root(cfg) / "smoke" / "gt_rollout" / "frames").glob("*.png"))
-    if not frames:
-        return {"error": "no smoke frames on volume — run p0's GPU half first"}
+    if frames:
+        png = frames[-1].read_bytes()
+        source = str(frames[-1])
+    else:
+        # No rendered frames yet: score a synthetic near-success scene so the
+        # key + provider + JSON-schema plumbing is verified independently of G0.
+        import io
+
+        from PIL import Image, ImageDraw
+
+        img = Image.new("RGB", (640, 480), (115, 115, 122))
+        d = ImageDraw.Draw(img)
+        d.ellipse([300, 220, 420, 300], fill=(26, 178, 51))   # green goal disk
+        d.rectangle([335, 230, 385, 280], fill=(217, 26, 26))  # red cube on it
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        png = buf.getvalue()
+        source = "synthetic (cube centered on goal; expect a high score)"
     client = VLMClient(cfg)
-    r = client.score_outcome(frames[-1].read_bytes())
+    r = client.score_outcome(png)
+    r["_source"] = source
     vol.commit()
     return r
 
