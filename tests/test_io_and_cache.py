@@ -93,6 +93,7 @@ def test_vlm_cache_zero_rebill(tmp_path, cfg, monkeypatch):
     from fidelityfloor.vlm import VLMClient
 
     client = VLMClient(cfg, cache_dir=tmp_path)
+    client.provider = "anthropic"  # tests mock the Anthropic client path
     client._client = _FakeAnthropic()
     _FakeAnthropic.calls = 0
 
@@ -102,6 +103,7 @@ def test_vlm_cache_zero_rebill(tmp_path, cfg, monkeypatch):
 
     # same content -> cache hit, even from a brand-new client instance
     client2 = VLMClient(cfg, cache_dir=tmp_path)
+    client2.provider = "anthropic"
     client2._client = _FakeAnthropic()
     r2 = client2.score_outcome(png)
     assert r2["score"] == 7 and _FakeAnthropic.calls == 1
@@ -118,6 +120,7 @@ def test_vlm_cache_corrupt_entry_refetched(tmp_path, cfg):
     from fidelityfloor.vlm import VLMClient, _cache_key
 
     client = VLMClient(cfg, cache_dir=tmp_path)
+    client.provider = "anthropic"
     client._client = _FakeAnthropic()
     _FakeAnthropic.calls = 0
     png = b"img"
