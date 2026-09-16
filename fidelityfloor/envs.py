@@ -129,7 +129,7 @@ class PushEnv:
         # over within substeps (seen in P0 frames), changing contact geometry.
         rb = PhysxSchema.PhysxRigidBodyAPI.Apply(stage.GetPrimAtPath(self.PUSHER_PATH))
         rb.CreateDisableGravityAttr(True)
-        rb.CreateLockedRotAxesAttr(7)
+        rb.CreateLockedRotAxisAttr(7)
         # Goal marker: visual-only flat disk (no collider -> no physics effect).
         self.goal_marker = scene.add(
             VisualCylinder(
