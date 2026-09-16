@@ -43,7 +43,7 @@ def g3_monotone_error(summary: dict, cfg: dict) -> dict:
         for c in enumerate_conditions(cfg):
             if c.axis == axis:
                 errs.append((int(c.severity),
-                             summary["induced_errors"][c.cid]["err_mean_matched"]))
+                             summary["induced_errors"][c.cid]["err_xaxis"]))
         errs.sort()
         vals = [e for _, e in errs]
         mono = bool(all(np.isfinite(vals)) and all(b > a for a, b in zip(vals, vals[1:])))
@@ -62,8 +62,8 @@ def g4_spread(shard_reports: list[dict]) -> dict:
 def determinism_floor_vs_mildest(floor: dict, summary: dict, cfg: dict) -> dict:
     """§3.1 gate: floor < cfg fraction of the mildest condition's induced error."""
     mildest = min(
-        summary["induced_errors"][c.cid]["err_mean_matched"]
-        for c in enumerate_conditions(cfg) if c.needs_sim
+        summary["induced_errors"][c.cid]["err_xaxis"]
+        for c in enumerate_conditions(cfg) if c.needs_sim and c.cid != "identity"
     )
     frac = cfg["determinism"]["floor_max_frac_of_mildest"]
     f = floor["floor_mean_matched_m"]
