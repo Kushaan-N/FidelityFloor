@@ -57,6 +57,22 @@ isaac_image = (
         extra_index_url="https://pypi.nvidia.com",
     )
     .pip_install("numpy<2", "scipy", "pyyaml", "pillow")
+    # Late layer (keeps the huge isaacsim layer cached): Modal injects the real
+    # NVIDIA ICD at /etc/vulkan/icd.d at runtime. Our baked copy made the same
+    # GPU enumerate twice -> ERROR_DEVICE_LOST (P0 run 1). Remove ours and every
+    # mesa software ICD, and pin the loader to the injected one.
+    .run_commands(
+        "rm -f /usr/share/vulkan/icd.d/nvidia_icd.json "
+        "/usr/share/vulkan/icd.d/intel_icd.x86_64.json "
+        "/usr/share/vulkan/icd.d/intel_hasvk_icd.x86_64.json "
+        "/usr/share/vulkan/icd.d/radeon_icd.x86_64.json "
+        "/usr/share/vulkan/icd.d/lvp_icd.x86_64.json "
+        "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
+    )
+    .env({
+        "VK_DRIVER_FILES": "/etc/vulkan/icd.d/nvidia_icd.json",
+        "VK_ICD_FILENAMES": "/etc/vulkan/icd.d/nvidia_icd.json",
+    })
     .add_local_python_source("fidelityfloor")
     .add_local_dir("configs", remote_path="/root/configs")
 )
@@ -72,6 +88,24 @@ cpu_image = (
 _retries = modal.Retries(max_retries=3, backoff_coefficient=2.0, initial_delay=10.0)
 
 
+def _anthropic_secrets() -> list:
+    """Attach the VLM API secret only if it exists, so the sim stages run before
+    any key is provisioned. Evaluated locally at deploy time only."""
+    if not modal.is_local():
+        return []
+    try:
+        s = modal.Secret.from_name("anthropic-api-key")
+        s.hydrate()
+        return [s]
+    except Exception:
+        print("NOTE: Modal secret 'anthropic-api-key' not found — VLM stages will "
+              "be skipped until you create it (any provider key; see vlm.py).")
+        return []
+
+
+_vlm_secrets = _anthropic_secrets()
+
+
 def _cfgs():
     from fidelityfloor.config import load_config, load_render_config
 
@@ -79,6 +113,42 @@ def _cfgs():
 
 
 # =============================================================== GPU functions
+
+@app.function(image=isaac_image, gpu=GPU, timeout=600)
+def diag_remote() -> dict:
+    """Cheap container diagnostic: driver, Vulkan ICDs, EGL vendors. No Isaac boot."""
+    import glob
+    import os
+    import subprocess
+
+    def run(cmd):
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            return (r.stdout + r.stderr)[:2500]
+        except Exception as e:  # noqa: BLE001
+            return f"ERR {e}"
+
+    icds = (glob.glob("/usr/share/vulkan/icd.d/*") + glob.glob("/etc/vulkan/icd.d/*")
+            + glob.glob("/usr/local/share/vulkan/icd.d/*"))
+    return {
+        "nvidia_smi": run(["nvidia-smi", "--query-gpu=name,driver_version",
+                           "--format=csv,noheader"]),
+        "vulkan_icds": {p: open(p).read()[:200] for p in icds},
+        "egl_vendors": glob.glob("/usr/share/glvnd/egl_vendor.d/*")
+        + glob.glob("/etc/glvnd/egl_vendor.d/*"),
+        "vulkaninfo_summary": run(["vulkaninfo", "--summary"])[:2500],
+        "libcuda": glob.glob("/usr/lib/x86_64-linux-gnu/libcuda*"),
+        "vk_env": {k: v for k, v in os.environ.items()
+                   if k.startswith(("VK_", "NVIDIA_", "CUDA_", "__EGL"))},
+    }
+
+
+@app.local_entrypoint()
+def diag():
+    import json
+
+    print(json.dumps(diag_remote.remote(), indent=2))
+
 
 @app.function(image=isaac_image, gpu=GPU, volumes={VOL_MOUNT: vol},
               timeout=3600, retries=_retries, max_containers=10)
@@ -143,8 +213,7 @@ def corrupt_remote(state_ids: list) -> dict:
     return out
 
 
-@app.function(image=cpu_image, volumes={VOL_MOUNT: vol}, timeout=7200,
-              secrets=[modal.Secret.from_name("anthropic-api-key")])
+@app.function(image=cpu_image, volumes={VOL_MOUNT: vol}, timeout=7200, secrets=_vlm_secrets)
 def vlm_score_remote(state_ids: list) -> dict:
     from fidelityfloor.runner import vlm_score_pass
 
@@ -156,15 +225,22 @@ def vlm_score_remote(state_ids: list) -> dict:
     }
 
 
-@app.function(image=cpu_image, volumes={VOL_MOUNT: vol}, timeout=1800,
-              secrets=[modal.Secret.from_name("anthropic-api-key")])
+@app.function(image=cpu_image, volumes={VOL_MOUNT: vol}, timeout=1800, secrets=_vlm_secrets)
 def vlm_smoke_remote() -> dict:
     """One VLM call round-trip against the smoke-test frame (P0 requirement)."""
     from pathlib import Path
 
+    import os
+
     from fidelityfloor.config import out_root
     from fidelityfloor.vlm import VLMClient
 
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not key or key.startswith("placeholder"):
+        return {"skipped": "no real VLM API key yet — replace the placeholder with "
+                           "`modal secret create --force anthropic-api-key "
+                           "ANTHROPIC_API_KEY=...` (or swap vlm.py to another provider) "
+                           "before P2's VLM pass"}
     cfg, _ = _cfgs()
     frames = sorted(Path(out_root(cfg) / "smoke" / "gt_rollout" / "frames").glob("*.png"))
     if not frames:
