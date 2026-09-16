@@ -90,9 +90,9 @@ class PushEnv:
         stage = self.world.stage
         # Lights (pure USD, no assets)
         dome = UsdLux.DomeLight.Define(stage, "/World/dome_light")
-        dome.CreateIntensityAttr(1000.0)
+        dome.CreateIntensityAttr(350.0)
         sun = UsdLux.DistantLight.Define(stage, "/World/sun")
-        sun.CreateIntensityAttr(3000.0)
+        sun.CreateIntensityAttr(1200.0)
         sun.AddRotateXYZOp().Set((-35.0, 20.0, 0.0))
 
         scene = self.world.scene
@@ -146,6 +146,8 @@ class PushEnv:
         self.world.reset()
         self.camera.initialize()
         self.camera.set_focal_length(cam.get("focal_length", 18.0) / 10.0)  # cm units
+        # Default near clip is 1.0 m — anything closer than 1 m vanished (P0 bug 2).
+        self.camera.set_clipping_range(0.02, 1.0e6)
         self._aim_camera(np.array(cam["position"]), np.array(cam["target"]))
 
     # ------------------------------------------------------------------ camera
