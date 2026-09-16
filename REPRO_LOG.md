@@ -61,3 +61,20 @@ All times US/Eastern. Every version pin, workaround, and deviation from `spec.md
 - Anthropic key not available yet; VLM secret made optional (functions attach it only
   if the Modal secret exists; `vlm_smoke` returns "skipped"). Free-VLM decision needed
   before P2's VLM pass.
+
+## 2026-09-16 (cont. 2) — P0 run 2 and the Modal/Unity pivot
+
+- **P0 run 2 FAILED identically** (`ERROR_DEVICE_LOST` at first RTX submit, ~174 s).
+  The duplicate-ICD warning was gone (fix verified), so that was necessary but not
+  sufficient. Remaining fingerprints — Warp `cuGetProcAddress`/`cuDeviceGetUuid`
+  "not found" on driver 580, plus Vulkan device-lost on first real graphics submit —
+  match Modal's gVisor (nvproxy) sandbox intercepting driver calls, not our code.
+  App stopped to halt spend (total GPU burn so far: a few dollars at most).
+- **Decision (spec §11 mitigation):** validate the identical code path on Unity's
+  L40S partition (bare metal, driver-native — Isaac's supported environment) via
+  `run_local.py smoke`. If Unity renders, the Modal issue is platform-level; grid
+  options become (a) Unity SLURM array at $0 GPU cost, (b) Modal NGC-container
+  variant retry. Isaac venv building at
+  `/scratch4/workspace/knaskar_umass_edu-fidelityfloor/venv-isaac` (py3.11.7 module).
+- VLM provider switched to **Gemini 2.5 Flash** by default (free-tier key; content-hash
+  cache unchanged; Anthropic path retained behind `vlm.provider`).
