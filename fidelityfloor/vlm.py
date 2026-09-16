@@ -146,7 +146,8 @@ class VLMClient:
         body = json.dumps({
             "contents": [{"parts": parts}],
             "generationConfig": {
-                "maxOutputTokens": self.max_tokens,
+                # Gemini 3.x spends output tokens on thinking — generous headroom
+                "maxOutputTokens": max(2048, self.max_tokens),
                 "responseMimeType": "application/json",
                 "responseJsonSchema": schema,
             },
@@ -160,8 +161,7 @@ class VLMClient:
             try:
                 with urllib.request.urlopen(req, timeout=120) as r:
                     resp = json.loads(r.read().decode())
-                text = resp["candidates"][0]["content"]["parts"][0]["text"]
-                out = json.loads(text)
+                out = self._parse_gemini_json(resp)
                 out["_meta"] = {"usage": resp.get("usageMetadata", {})}
                 return out
             except urllib.error.HTTPError as e:
@@ -170,7 +170,34 @@ class VLMClient:
                     time.sleep(min(60, 5 * 2 ** attempt))
                     continue
                 raise RuntimeError(f"Gemini call failed: {last_err}") from e
+            except (json.JSONDecodeError, KeyError, IndexError, ValueError) as e:
+                # malformed/truncated model output — retry the generation
+                last_err = f"parse failure: {e}; resp={str(resp)[:400]}"
+                time.sleep(2)
+                continue
         raise RuntimeError(f"Gemini call failed after retries: {last_err}")
+
+    @staticmethod
+    def _parse_gemini_json(resp: dict) -> dict:
+        """Extract the JSON object from a Gemini response, tolerating thought
+        parts, markdown fences, and prose around the object."""
+        import re
+
+        cand = resp["candidates"][0]
+        parts = cand.get("content", {}).get("parts", [])
+        texts = [p["text"] for p in parts if p.get("text") and not p.get("thought")]
+        if not texts:
+            raise ValueError(f"no text parts (finishReason={cand.get('finishReason')})")
+        text = texts[-1].strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            m = re.search(r"\{.*\}", text, re.S)
+            if not m:
+                raise
+            return json.loads(m.group(0))
 
     # ------------------------------------------------------------ public API
     def score_outcome(self, final_frame_png: bytes, repeat: int = 0) -> dict:
