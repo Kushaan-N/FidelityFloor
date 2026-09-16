@@ -68,7 +68,9 @@ axes:
       "3": {fraction: 0.25}
 
 vlm:
-  model: claude-opus-4-8   # scorer; swap to claude-haiku-4-5 to cut VLM cost ~5x
+  provider: gemini         # 'gemini' (free-tier key from Google AI Studio) or 'anthropic'
+  model: gemini-2.5-flash  # anthropic alternative: claude-opus-4-8 (cache keys include
+                           # the model name, so switching never mixes cached responses)
   max_tokens: 300
   score_repeats_subset: 5  # states on which VLM scoring is repeated 2x (scorer noise bound)
 
