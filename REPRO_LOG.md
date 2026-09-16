@@ -78,3 +78,27 @@ All times US/Eastern. Every version pin, workaround, and deviation from `spec.md
   `/scratch4/workspace/knaskar_umass_edu-fidelityfloor/venv-isaac` (py3.11.7 module).
 - VLM provider switched to **Gemini 2.5 Flash** by default (free-tier key; content-hash
   cache unchanged; Anthropic path retained behind `vlm.provider`).
+
+## 2026-09-16 (cont. 3) — Unity G0 debugging + VLM validated
+
+- **Unity L40S renders Isaac fine** (driver 580.173.02, Ubuntu 24.04) — confirms the
+  Modal failure is platform-level (gVisor), not our stack. Warp's `cuDeviceGetUuid`
+  warning appears on bare metal too → benign, not a gVisor fingerprint after all.
+- **P0 bug 2 (blank frames):** hand-rolled camera quaternion aimed at the sky —
+  replaced with `set_camera_view`. **P0 bug 3:** Camera default near-clip is 1.0 m,
+  which deleted the whole near scene at close poses (the "table floating in sky"
+  artifact) — now `set_clipping_range(0.02, 1e6)`.
+- **Render settings frozen (G4/P0):** camera (0.85, 0, 0.80) → origin, focal 18,
+  dome 350 / sun 1200 — chosen by inspecting a 3-pose contact sweep; objects
+  legible and well saturated.
+- **P0 bug 4:** pusher cylinder tipped over from contact torques → PhysX
+  `lockedRotAxis=7`. Dynamics changed; pre-fix outputs wiped.
+- **Modal lesson:** conditionally-attached secrets make functions crash-loop
+  ("2 dependencies but 3 object ids") — secrets lists must be identical in local
+  and remote evaluation.
+- **VLM path VALIDATED end-to-end:** Gemini free key → Modal secret →
+  `gemini-3.6-flash` (2.5-flash is retired for new accounts) with robust JSON
+  parsing (thought parts, fences, truncation retry). Synthetic cube-on-goal scored
+  10/10, latency 3.5 s, ~1.4k tokens/call.
+- Timings (warm cache, Unity): kit boot ~14 s, rollout with render ~1.0 s,
+  physics-only ~0.55 s. 3-state determinism floor: exactly 0.0 (CPU PhysX bit-exact).
