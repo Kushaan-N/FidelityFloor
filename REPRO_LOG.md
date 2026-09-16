@@ -45,3 +45,19 @@ All times US/Eastern. Every version pin, workaround, and deviation from `spec.md
 - [ ] PhysX replay-determinism floor over ≥20 states (CPU solver expected ~exact;
       report the measured number regardless)
 - [ ] Recompute §10 budget + grid sizes from the above; record here.
+
+## 2026-09-16 (cont.) — P0 debugging
+
+- **P0 run 1 FAILED** (`ERROR_DEVICE_LOST` ~90 s after `app ready`, during first RTX
+  render). Root cause via `modal run modal_app.py::diag`: our image baked an NVIDIA
+  Vulkan ICD at `/usr/share/vulkan/icd.d/nvidia_icd.json` while Modal injects the real
+  one at `/etc/vulkan/icd.d/nvidia_icd.json` — the same L40S enumerated as two Vulkan
+  devices (identical deviceUUID), which Isaac explicitly flags as crash-inducing.
+  Fix: late image layer removes our ICD + all mesa software ICDs and pins
+  `VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json`.
+- Container facts (L40S worker): driver **580.95.05**, Vulkan API 1.4.312. Isaac Sim
+  5.0.0 pip image built in ~200 s (isaacsim layer), SimulationApp booted headless in
+  ~29 s. Warp logged `CUDA error 36` at init (watching — physics is CPU anyway).
+- Anthropic key not available yet; VLM secret made optional (functions attach it only
+  if the Modal secret exists; `vlm_smoke` returns "skipped"). Free-VLM decision needed
+  before P2's VLM pass.
