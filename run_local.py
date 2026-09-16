@@ -69,6 +69,9 @@ def main():
                "per_condition_keys": list(summary["per_condition"].keys())}
 
     print(json.dumps(out, indent=2, default=str))
+    from fidelityfloor.envs import close_sim_app
+
+    close_sim_app()
 
 
 if __name__ == "__main__":
