@@ -145,7 +145,10 @@ def vlm_score_pass(cfg: dict, state_ids: list[int],
 
     def work(job):
         cid, sid, ci, rep, png = job
-        return cid, sid, ci, rep, float(client.score_outcome(png, repeat=rep)["score"])
+        # Production scorer (bake-off, 2026-09-17): metric distance estimate,
+        # ranked by -distance. Identity rho 0.88 vs 0.62 for the 0-10 score.
+        return cid, sid, ci, rep, -float(
+            client.estimate_distance(png, repeat=rep)["distance_cm"])
 
     results: dict[tuple, float] = {}
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
