@@ -349,6 +349,12 @@ def p0():
 
 
 @app.local_entrypoint()
+def vlm_pass(n_states: int = 3):
+    """VLM-score all conditions for the first n_states (frames must be on the volume)."""
+    print(vlm_score_remote.remote(list(range(n_states))))
+
+
+@app.local_entrypoint()
 def vlm_smoke():
     """One VLM round-trip (synthetic image if no rendered frames on the volume)."""
     print(vlm_smoke_remote.remote())
