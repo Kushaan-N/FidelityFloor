@@ -180,6 +180,51 @@ def load_vlm_scores(cfg: dict) -> dict | None:
     return out
 
 
+def vlm_prototype_pass(cfg: dict, state_ids: list[int], condition_ids: list[str]) -> dict:
+    """Scorer-variant bake-off on existing frames (G1-VLM tuning): per-frame 0-10
+    score (baseline), per-frame distance estimate, and rank-all-K, with one repeat
+    each for noise. Returns raw outputs keyed by condition|state."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from .vlm import VLMClient
+
+    k = cfg["candidates"]["k"]
+    client = VLMClient(cfg)
+    out = {}
+    for cid in condition_ids:
+        cond = condition_by_id(cfg, cid)
+        for sid in state_ids:
+            pngs = []
+            for ci in range(k):
+                d = run_dir(cfg, cond, sid) / f"cand_{ci:02d}"
+                frames = sorted((d / "frames").glob("*.png"))
+                if not frames:
+                    break
+                pngs.append(frames[-1].read_bytes())
+            if len(pngs) < k:
+                continue
+            entry = {}
+            with ThreadPoolExecutor(max_workers=12) as ex:
+                entry["score"] = list(ex.map(
+                    lambda p: float(client.score_outcome(p)["score"]), pngs))
+                entry["dist"] = list(ex.map(
+                    lambda p: float(client.estimate_distance(p)["distance_cm"]), pngs))
+                entry["dist_rep"] = list(ex.map(
+                    lambda p: float(client.estimate_distance(p, repeat=1)["distance_cm"]),
+                    pngs))
+            for tag, rep in (("rank", 0), ("rank_rep", 1)):
+                try:
+                    entry[tag] = client.rank_outcomes(pngs, repeat=rep)["ranking"]
+                except Exception as e:  # invalid permutation after retries
+                    entry[tag] = f"ERR {e}"
+            out[f"{cid}|{sid}"] = entry
+    from .config import out_root as _or
+
+    atomic_write_json(_or(cfg) / "tables" / "vlm_prototype.json",
+                      {"results": out, "billed_calls": client.n_billed_calls})
+    return {"n_keys": len(out), "billed_calls": client.n_billed_calls}
+
+
 # ------------------------------------------------------------------- smoke test
 
 def smoke_test(cfg: dict, render_cfg: dict) -> dict:
