@@ -43,6 +43,49 @@ ANSWER_SCHEMA = {
     "additionalProperties": False,
 }
 
+DIST_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "distance_cm": {"type": "number", "minimum": 0, "maximum": 200},
+        "reason": {"type": "string"},
+    },
+    "required": ["distance_cm", "reason"],
+    "additionalProperties": False,
+}
+
+DIST_PROMPT = (
+    "The image shows a tabletop after a manipulation attempt: a red cube, a blue "
+    "cylindrical pusher, and a flat green goal disk (6 cm radius) on a 120 cm square "
+    "table. Estimate the distance in centimeters between the CENTER of the red cube "
+    "and the CENTER of the green disk. Use the known sizes (cube is 5 cm wide, disk "
+    "is 12 cm across, table is 120 cm across) to calibrate your estimate. If the cube "
+    "sits on the disk, the distance is small (0-6). Respond with JSON."
+)
+
+RANK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ranking": {
+            "type": "array",
+            "items": {"type": "integer", "minimum": 1, "maximum": 12},
+            "minItems": 12,
+            "maxItems": 12,
+        },
+        "reason": {"type": "string"},
+    },
+    "required": ["ranking", "reason"],
+    "additionalProperties": False,
+}
+
+RANK_PROMPT = (
+    "You are shown 12 images, in order (image 1 through image 12). Each shows the "
+    "FINAL state of a different attempt at the same task: push the red cube onto the "
+    "flat green goal disk. Rank ALL 12 attempts from most successful to least "
+    "successful, judging ONLY how close the red cube ended up to the green disk. "
+    "Return `ranking` as the image numbers (1-12) ordered best first, worst last — "
+    "every number 1-12 exactly once. Respond with JSON."
+)
+
 
 def _cache_key(model: str, prompt: str, images: list[bytes], repeat: int = 0) -> str:
     h = hashlib.sha256()
@@ -218,6 +261,19 @@ class VLMClient:
     def score_outcome(self, final_frame_png: bytes, repeat: int = 0) -> dict:
         """Tier 2: 0-10 success score for one imagined final frame."""
         return self._call_json(SCORE_PROMPT, [final_frame_png], SCORE_SCHEMA, repeat)
+
+    def estimate_distance(self, final_frame_png: bytes, repeat: int = 0) -> dict:
+        """Tier 2 scorer variant A: metric cube-to-goal distance estimate (cm).
+        Rank candidates by ascending distance."""
+        return self._call_json(DIST_PROMPT, [final_frame_png], DIST_SCHEMA, repeat)
+
+    def rank_outcomes(self, final_frames: list[bytes], repeat: int = 0) -> dict:
+        """Tier 2 scorer variant B: one call ranking all K final frames."""
+        out = self._call_json(RANK_PROMPT, list(final_frames), RANK_SCHEMA, repeat)
+        r = out.get("ranking", [])
+        if sorted(r) != list(range(1, len(final_frames) + 1)):
+            raise ValueError(f"invalid ranking permutation: {r}")
+        return out
 
     def answer_question(self, question: str, images: list[bytes], choices: list[str],
                         repeat: int = 0) -> dict:
