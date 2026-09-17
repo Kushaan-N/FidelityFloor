@@ -153,7 +153,9 @@ class VLMClient:
             },
         }).encode()
         last_err = None
-        for attempt in range(6):
+        rate_waits = 0
+        attempt = 0
+        while attempt < 6:
             req = urllib.request.Request(
                 url, data=body,
                 headers={"Content-Type": "application/json",
@@ -166,13 +168,26 @@ class VLMClient:
                 return out
             except urllib.error.HTTPError as e:
                 last_err = f"HTTP {e.code}: {e.read()[:300]}"
-                if e.code in (429, 500, 503):
+                if e.code == 429:
+                    # per-minute quota: wait it out (up to ~20 min) without
+                    # burning generation-retry attempts; daily quota still
+                    # fails after that with a clear error
+                    rate_waits += 1
+                    if rate_waits > 20:
+                        raise RuntimeError(
+                            f"Gemini quota exhausted (likely daily cap): {last_err}"
+                        ) from e
+                    time.sleep(62)
+                    continue
+                if e.code in (500, 503):
+                    attempt += 1
                     time.sleep(min(60, 5 * 2 ** attempt))
                     continue
                 raise RuntimeError(f"Gemini call failed: {last_err}") from e
             except (json.JSONDecodeError, KeyError, IndexError, ValueError) as e:
                 # malformed/truncated model output — retry the generation
                 last_err = f"parse failure: {e}; resp={str(resp)[:400]}"
+                attempt += 1
                 time.sleep(2)
                 continue
         raise RuntimeError(f"Gemini call failed after retries: {last_err}")
