@@ -348,6 +348,24 @@ def p0():
           f"(update REPRO_LOG.md §0.7 and recompute the §10 budget)")
 
 
+@app.function(image=cpu_image, volumes={VOL_MOUNT: vol}, timeout=3600, secrets=_vlm_secrets)
+def vlm_proto_remote(args: dict) -> dict:
+    from fidelityfloor.runner import vlm_prototype_pass
+
+    cfg, _ = _cfgs()
+    out = vlm_prototype_pass(cfg, args["state_ids"], args["condition_ids"])
+    vol.commit()
+    return out
+
+
+@app.local_entrypoint()
+def vlm_proto():
+    print(vlm_proto_remote.remote({
+        "state_ids": [0, 1, 2],
+        "condition_ids": ["identity", "dyn_noise-2", "miscalibration-2"],
+    }))
+
+
 @app.local_entrypoint()
 def vlm_pass(n_states: int = 3):
     """VLM-score all conditions for the first n_states (frames must be on the volume)."""
