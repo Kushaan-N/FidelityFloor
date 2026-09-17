@@ -102,3 +102,25 @@ All times US/Eastern. Every version pin, workaround, and deviation from `spec.md
   10/10, latency 3.5 s, ~1.4k tokens/call.
 - Timings (warm cache, Unity): kit boot ~14 s, rollout with render ~1.0 s,
   physics-only ~0.55 s. 3-state determinism floor: exactly 0.0 (CPU PhysX bit-exact).
+
+## 2026-09-17 — P2 complete (sim side); gates G1–G5 (except VLM items)
+
+- P2 grid done on Unity: 3 states x 13 conditions x K=12 (492 rollouts incl. reused
+  P1 GT/identity; 108 obs-corruption variants generated post-hoc on CPU).
+- **Metric fix:** horizon truncation's imagined trajectory is an identical prefix of
+  GT (deterministic sim), so matched-step error is 0 by construction; the x-axis now
+  uses final-state error for the horizon axis (`err_xaxis`), matched-step error for
+  the action axes. Pre-registration unchanged (it already specified this split).
+- **Gates:** G1 PASS (identity rho=1.000, regret=0). G2 PASS. G3 PASS (monotone:
+  misc .048/.124/.207; noise .028/.061/.121; horizon .022/.104/.242 m). Floor-vs-
+  mildest PASS trivially (floor = 0 exactly). G5.6 PASS (same-seed re-run of a wiped
+  shard bit-identical). G5.2 PASS (kill at ~15 s left 11/12 rollouts; resume completed
+  exactly the missing one). G4 contact sheet inspected: severity 1-2 legible,
+  severity 3 at legibility collapse — as intended.
+- Draft figs 1-2 rendered. Early n=3 signal: at matched error (~0.12 m), dyn_noise
+  ranks WORSE than miscalibration (paired delta = -0.065, CI [-0.103, -0.039]) —
+  OPPOSITE of pre-registered P1. n=3; F1 decides.
+- Remaining before F1: VLM pass on P2 (blocked on GEMINI_API_KEY file on Unity
+  scratch), then G1-VLM bar (>0.7) + G5.5 cache-zero-rebill check.
+- Budget status: Modal spend to date only P0 debugging (~$3-5); all sim compute now
+  $0 on Unity gpu-preempt. VLM projected $0-5 total.
