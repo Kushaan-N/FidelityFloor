@@ -114,9 +114,12 @@ def corrupt_frames_pass(cfg: dict, state_ids: list[int]) -> dict:
 # ------------------------------------------------------------ VLM scoring (CPU)
 
 def vlm_score_pass(cfg: dict, state_ids: list[int],
-                   condition_ids: list[str] | None = None) -> dict:
+                   condition_ids: list[str] | None = None,
+                   max_workers: int = 12) -> dict:
     """Score the final frame of every (condition, state, candidate) rollout with
-    the VLM. Cached by content hash — re-runs are free (G5.5)."""
+    the VLM, in parallel. Cached by content hash — re-runs are free (G5.5)."""
+    from concurrent.futures import ThreadPoolExecutor
+
     from .vlm import VLMClient
 
     k = cfg["candidates"]["k"]
@@ -125,25 +128,39 @@ def vlm_score_pass(cfg: dict, state_ids: list[int],
         condition_by_id(cfg, cid) for cid in condition_ids
     ]
     repeats_n = cfg["vlm"]["score_repeats_subset"]
-    scores: dict[str, dict] = {}
-    missing = []
+
+    jobs, missing = [], []  # (cond.cid, sid, ci, repeat, png)
     for cond in conds:
         for sid in state_ids:
-            svec, svec_rep = [], []
             for ci in range(k):
                 d = run_dir(cfg, cond, sid) / f"cand_{ci:02d}"
                 frames = sorted((d / "frames").glob("*.png"))
                 if not rollout_done(d) or not frames:
                     missing.append(f"{cond.cid}:{sid}:c{ci}")
-                    svec.append(np.nan)
                     continue
                 png = frames[-1].read_bytes()  # final frame
-                svec.append(float(client.score_outcome(png)["score"]))
+                jobs.append((cond.cid, sid, ci, 0, png))
                 if sid < repeats_n:
-                    svec_rep.append(float(client.score_outcome(png, repeat=1)["score"]))
+                    jobs.append((cond.cid, sid, ci, 1, png))
+
+    def work(job):
+        cid, sid, ci, rep, png = job
+        return cid, sid, ci, rep, float(client.score_outcome(png, repeat=rep)["score"])
+
+    results: dict[tuple, float] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        for cid, sid, ci, rep, s in ex.map(work, jobs):
+            results[(cid, sid, ci, rep)] = s
+
+    scores: dict[str, dict] = {}
+    for cond in conds:
+        for sid in state_ids:
+            svec = [results.get((cond.cid, sid, ci, 0), np.nan) for ci in range(k)]
             entry = {"scores": svec}
-            if svec_rep:
-                entry["scores_repeat"] = svec_rep
+            rep = [results[(cond.cid, sid, ci, 1)] for ci in range(k)
+                   if (cond.cid, sid, ci, 1) in results]
+            if rep:
+                entry["scores_repeat"] = rep
             scores[f"{cond.cid}|{sid}"] = entry
     out = {"scores": scores, "missing": missing, "billed_calls": client.n_billed_calls,
            "model": client.model}
