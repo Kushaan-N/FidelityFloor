@@ -124,3 +124,16 @@ All times US/Eastern. Every version pin, workaround, and deviation from `spec.md
   scratch), then G1-VLM bar (>0.7) + G5.5 cache-zero-rebill check.
 - Budget status: Modal spend to date only P0 debugging (~$3-5); all sim compute now
   $0 on Unity gpu-preempt. VLM projected $0-5 total.
+
+## 2026-09-17 (cont.) — F1 sim done; VLM scorer redesigned at the G1 gate
+
+- **F1 sim COMPLETE, $0 GPU**: 4,680 rollouts (30 states x 13 conds x K=12 incl.
+  obs-corruption variants); 30/30 states pass the G4 spread check. Queue-wait beaten
+  by racing an idempotent 30-task array against two consolidated one-job loops.
+- **G1-VLM FAILED as designed-for**: 0-10 absolute scoring ceiling on perfect
+  imagination rho=0.619 < 0.7 bar (repeat noise |dScore| 0.70, 45% identical).
+  Full-grid pass with the weak prompt stopped mid-flight (~$1.5 spent).
+- **Scorer bake-off** (P2 frames, ~$0.5): 0-10 score rho 0.619; distance-in-cm
+  estimate rho **0.879** (repeat agreement 0.72-0.97); rank-all-12 in one call
+  failed (invalid permutations). Production scorer = distance estimate, ranked by
+  -distance_cm. Grid rescore relaunched with the winner.
