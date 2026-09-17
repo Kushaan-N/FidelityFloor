@@ -137,3 +137,17 @@ All times US/Eastern. Every version pin, workaround, and deviation from `spec.md
   estimate rho **0.879** (repeat agreement 0.72-0.97); rank-all-12 in one call
   failed (invalid permutations). Production scorer = distance estimate, ranked by
   -distance_cm. Grid rescore relaunched with the winner.
+
+## 2026-09-17 (cont. 2) — F1 state-scored analysis COMPLETE (n=30)
+
+- All gates PASS at n=30. Full per-condition table in tables/summary_f1_state.json.
+- **Headline (fig 2):** at matched induced error (misc-2: 0.124 m vs noise-3: 0.118 m),
+  Spearman is statistically indistinguishable (Δ=0.016, CI [-0.101, 0.130]) but
+  **normalized top-1 regret more than doubles under systematic bias**: 0.586 vs
+  0.277, paired Δ(noise−misc) = -0.309, CI [-0.444, -0.169]. Pre-registered P1
+  ("bias hurts more") is falsified on rank correlation, confirmed on selection
+  regret — bias doesn't scramble the ranking, it moves the argmax.
+- Horizon axis is the most forgiving per meter (rho 0.75 at 0.24 m final-state
+  error); mild stochastic noise is nearly free (rho 0.88 at 0.025 m).
+- VLM-scored column pending: Gemini prepay credits depleted mid-grid; scorer
+  redesigned (distance estimate, minimal thinking, 384px) — needs ~$2 top-up.
