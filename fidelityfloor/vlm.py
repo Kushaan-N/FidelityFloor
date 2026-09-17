@@ -59,7 +59,8 @@ DIST_PROMPT = (
     "table. Estimate the distance in centimeters between the CENTER of the red cube "
     "and the CENTER of the green disk. Use the known sizes (cube is 5 cm wide, disk "
     "is 12 cm across, table is 120 cm across) to calibrate your estimate. If the cube "
-    "sits on the disk, the distance is small (0-6). Respond with JSON."
+    "sits on the disk, the distance is small (0-6). Answer immediately with JSON; "
+    "no deliberation needed."
 )
 
 RANK_SCHEMA = {
@@ -85,6 +86,22 @@ RANK_PROMPT = (
     "Return `ranking` as the image numbers (1-12) ordered best first, worst last — "
     "every number 1-12 exactly once. Respond with JSON."
 )
+
+
+def _shrink(png: bytes, max_side: int = 384) -> bytes:
+    """Downscale for the API call only (Gemini bills <=384px images at a flat
+    258 tokens, ~4x cheaper than 640px). Cache keys use the ORIGINAL bytes."""
+    import io
+
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(png))
+    if max(img.size) <= max_side:
+        return png
+    img.thumbnail((max_side, max_side), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.convert("RGB").save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def _cache_key(model: str, prompt: str, images: list[bytes], repeat: int = 0) -> str:
@@ -183,22 +200,31 @@ class VLMClient:
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
                f"{self.model}:generateContent")
         parts = [{"inline_data": {"mime_type": "image/png",
-                                  "data": base64.standard_b64encode(im).decode()}}
+                                  "data": base64.standard_b64encode(_shrink(im)).decode()}}
                  for im in images]
         parts.append({"text": prompt})
-        body = json.dumps({
-            "contents": [{"parts": parts}],
-            "generationConfig": {
-                # Gemini 3.x spends output tokens on thinking — generous headroom
-                "maxOutputTokens": max(2048, self.max_tokens),
-                "responseMimeType": "application/json",
-                "responseJsonSchema": schema,
-            },
-        }).encode()
+        gen_cfg = {
+            # Gemini 3.x spends output tokens on thinking — generous headroom
+            "maxOutputTokens": max(2048, self.max_tokens),
+            "responseMimeType": "application/json",
+            "responseJsonSchema": schema,
+        }
+        # minimize thinking spend on this perception-only task (field name per
+        # Gemini 3 API; on 400 we retry without it)
+        body_variants = [
+            {"contents": [{"parts": parts}],
+             "generationConfig": {**gen_cfg, "thinkingConfig": {"thinkingLevel": "minimal"}}},
+            {"contents": [{"parts": parts}],
+             "generationConfig": {**gen_cfg, "thinkingConfig": {"thinkingBudget": 0}}},
+            {"contents": [{"parts": parts}], "generationConfig": gen_cfg},
+        ]
+        body = None  # chosen in the retry loop
         last_err = None
         rate_waits = 0
         attempt = 0
+        variant_i = 0
         while attempt < 6:
+            body = json.dumps(body_variants[min(variant_i, len(body_variants) - 1)]).encode()
             req = urllib.request.Request(
                 url, data=body,
                 headers={"Content-Type": "application/json",
@@ -225,6 +251,9 @@ class VLMClient:
                 if e.code in (500, 503):
                     attempt += 1
                     time.sleep(min(60, 5 * 2 ** attempt))
+                    continue
+                if e.code == 400 and variant_i < len(body_variants) - 1:
+                    variant_i += 1  # thinkingConfig field not accepted — try next form
                     continue
                 raise RuntimeError(f"Gemini call failed: {last_err}") from e
             except (json.JSONDecodeError, KeyError, IndexError, ValueError) as e:
