@@ -1,0 +1,358 @@
+<title>FidelityFloor — lab talk</title>
+<style>
+@font-face{font-family:'Plex Cond';src:url(data:font/woff2;base64,@@F_COND@@) format('woff2');font-weight:600;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url(data:font/woff2;base64,@@F_MONO@@) format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url(data:font/woff2;base64,@@F_MONOM@@) format('woff2');font-weight:500;font-display:swap}
+
+:root{
+  --paper:#F5F7F4; --plate:#FFFFFF; --ink:#17211A; --muted:#5C6B61;
+  --line:#D9E0DA; --grid:rgba(23,33,26,.045); --accent:#177E4D; --accent-ink:#0E5C36;
+  --bias:#C0392B; --noise:#2980B9; --horizon:#8E44AD; --warn:#A66A00;
+  --plate-border:#D9E0DA; --shadow:0 1px 2px rgba(23,33,26,.06),0 8px 28px rgba(23,33,26,.07);
+}
+@media (prefers-color-scheme: dark){:root{
+  --paper:#0F1512; --plate:#161D18; --ink:#E6EDE7; --muted:#93A498;
+  --line:#28322B; --grid:rgba(230,237,231,.04); --accent:#41C983; --accent-ink:#5CD696;
+  --bias:#E05B4C; --noise:#4FA3DE; --horizon:#B06CD0; --warn:#D89B3D;
+  --plate-border:#2B362E; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 32px rgba(0,0,0,.45);
+}}
+:root[data-theme="light"]{
+  --paper:#F5F7F4; --plate:#FFFFFF; --ink:#17211A; --muted:#5C6B61;
+  --line:#D9E0DA; --grid:rgba(23,33,26,.045); --accent:#177E4D; --accent-ink:#0E5C36;
+  --bias:#C0392B; --noise:#2980B9; --horizon:#8E44AD; --warn:#A66A00;
+  --plate-border:#D9E0DA; --shadow:0 1px 2px rgba(23,33,26,.06),0 8px 28px rgba(23,33,26,.07);
+}
+:root[data-theme="dark"]{
+  --paper:#0F1512; --plate:#161D18; --ink:#E6EDE7; --muted:#93A498;
+  --line:#28322B; --grid:rgba(230,237,231,.04); --accent:#41C983; --accent-ink:#5CD696;
+  --bias:#E05B4C; --noise:#4FA3DE; --horizon:#B06CD0; --warn:#D89B3D;
+  --plate-border:#2B362E; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 32px rgba(0,0,0,.45);
+}
+
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  background:var(--paper); color:var(--ink); overflow:hidden;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+.deck{height:100vh;height:100dvh;position:relative}
+.rail{position:fixed;top:0;left:0;right:0;height:3px;background:var(--line);z-index:40}
+.rail i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s ease}
+.slides{height:100%;display:flex;transition:transform .38s cubic-bezier(.4,0,.2,1)}
+@media (prefers-reduced-motion: reduce){.slides{transition:none}.rail i{transition:none}}
+.slide{
+  min-width:100vw;height:100%;padding:clamp(24px,4.5vh,56px) clamp(28px,6vw,110px);
+  display:flex;flex-direction:column;justify-content:center;gap:clamp(14px,2.4vh,28px);
+  overflow-y:auto;
+}
+.eyebrow{
+  font-family:'Plex Mono',monospace;font-weight:500;font-size:clamp(11px,1.15vw,13px);
+  letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  display:flex;align-items:center;gap:12px;
+}
+.eyebrow::after{content:"";flex:0 0 clamp(40px,6vw,90px);height:1px;background:var(--line)}
+.eyebrow .idx{color:var(--muted)}
+h1,h2{font-family:'Plex Cond','Arial Narrow',sans-serif;font-weight:600;line-height:1.04;text-wrap:balance;letter-spacing:-0.005em}
+h1{font-size:clamp(38px,6.4vw,86px)}
+h2{font-size:clamp(26px,3.9vw,52px);max-width:22ch}
+.lede{font-size:clamp(15px,1.55vw,20px);line-height:1.55;color:var(--muted);max-width:62ch}
+.lede strong,.body strong{color:var(--ink);font-weight:600}
+.body{font-size:clamp(13.5px,1.3vw,17px);line-height:1.6;max-width:60ch}
+.mono{font-family:'Plex Mono',monospace}
+.cols{display:grid;gap:clamp(16px,2.6vw,44px);align-items:start}
+.c2{grid-template-columns:1fr 1fr}.c32{grid-template-columns:1.25fr 1fr}.c23{grid-template-columns:1fr 1.25fr}
+.plate{background:#fff;border:1px solid var(--plate-border);border-radius:6px;padding:10px;box-shadow:var(--shadow)}
+.plate img{display:block;width:100%;height:auto;border-radius:2px}
+.plate figcaption{font-family:'Plex Mono',monospace;font-size:clamp(10.5px,1vw,12.5px);color:var(--muted);padding:9px 4px 2px;line-height:1.5}
+ul.tick{list-style:none;display:flex;flex-direction:column;gap:clamp(8px,1.3vh,14px);padding:0;max-width:58ch}
+ul.tick li{padding-left:24px;position:relative;font-size:clamp(13.5px,1.3vw,17px);line-height:1.55}
+ul.tick li::before{content:"";position:absolute;left:2px;top:.62em;width:10px;height:2px;background:var(--accent)}
+table{border-collapse:collapse;width:100%;font-size:clamp(12px,1.2vw,15.5px)}
+th{font-family:'Plex Mono',monospace;font-weight:500;font-size:clamp(10.5px,1vw,12.5px);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:0 14px 8px 0;border-bottom:1px solid var(--ink)}
+td{padding:9px 14px 9px 0;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.45}
+td.num{font-family:'Plex Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip{font-family:'Plex Mono',monospace;font-weight:500;font-size:.82em;padding:2px 8px;border-radius:3px;white-space:nowrap}
+.chip.pass{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent-ink)}
+.chip.fail{background:color-mix(in srgb,var(--bias) 14%,transparent);color:var(--bias)}
+.chip.wait{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.kbias{color:var(--bias);font-weight:600}.knoise{color:var(--noise);font-weight:600}.khor{color:var(--horizon);font-weight:600}
+.statrow{display:flex;gap:clamp(20px,4vw,64px);flex-wrap:wrap}
+.stat .v{font-family:'Plex Mono',monospace;font-weight:500;font-size:clamp(26px,3.4vw,46px);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat .l{font-family:'Plex Mono',monospace;font-size:clamp(10px,1vw,12px);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.bignum{font-family:'Plex Mono',monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.callout{border-left:3px solid var(--accent);padding:10px 0 10px 18px;font-size:clamp(15px,1.6vw,21px);line-height:1.5;max-width:56ch}
+.callout .mono{font-size:.85em}
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.fbox{border:1.5px solid var(--ink);border-radius:5px;padding:clamp(10px,1.4vh,16px) clamp(12px,1.5vw,20px);background:var(--plate);min-width:0}
+.fbox .t{font-family:'Plex Mono',monospace;font-weight:500;font-size:clamp(10px,1vw,12px);letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink)}
+.fbox .d{font-size:clamp(12.5px,1.2vw,15px);line-height:1.45;margin-top:4px}
+.farrow{align-self:center;padding:0 clamp(8px,1.2vw,18px);font-family:'Plex Mono',monospace;color:var(--muted);font-size:clamp(14px,1.6vw,20px)}
+.foot{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;padding:12px clamp(20px,3vw,44px);z-index:40;pointer-events:none}
+.foot .mono{font-size:11.5px;color:var(--muted)}
+.dots{display:flex;gap:7px;pointer-events:auto}
+.dots button{width:8px;height:8px;border-radius:50%;border:none;background:var(--line);cursor:pointer;padding:0}
+.dots button.on{background:var(--accent)}
+.dots button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{position:fixed;right:clamp(20px,3vw,44px);top:16px;font-family:'Plex Mono',monospace;font-size:11px;color:var(--muted);z-index:40;letter-spacing:.08em}
+.title-mark{display:flex;gap:10px;align-items:center;margin-bottom:clamp(6px,1vh,14px)}
+.title-mark .sq{width:13px;height:13px;border-radius:2px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-family:'Plex Mono',monospace;font-size:clamp(11px,1.05vw,13px);color:var(--muted)}
+.legend b{font-weight:500}
+.gatecard{display:grid;grid-template-columns:auto 1fr auto;gap:6px 16px;align-items:baseline;border:1px solid var(--line);border-radius:6px;padding:12px 16px;background:var(--plate)}
+.gatecard .g{font-family:'Plex Mono',monospace;font-weight:500;color:var(--accent-ink)}
+.smallcap{font-family:'Plex Mono',monospace;font-size:clamp(10.5px,1vw,12.5px);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+@media (max-width:860px){
+  body{overflow:auto}
+  .deck,.slides{display:block;height:auto}
+  .slide{min-width:0;min-height:100vh;height:auto}
+  .c2,.c32,.c23{grid-template-columns:1fr}
+  .hint{display:none}
+  .foot{position:static;justify-content:center;padding:20px}
+}
+</style>
+
+<div class="deck">
+<div class="rail"><i id="rail"></i></div>
+<div class="hint">← → to navigate</div>
+<div class="slides" id="slides">
+<!-- 0 · TITLE -->
+<section class="slide">
+  <div class="title-mark">
+    <span class="sq" style="background:var(--bias)"></span>
+    <span class="sq" style="background:var(--noise)"></span>
+    <span class="sq" style="background:var(--accent)"></span>
+    <span class="smallcap">FidelityFloor · September 2026</span>
+  </div>
+  <h1>How good does a world model<br>actually need to be?</h1>
+  <p class="lede">AI agents increasingly plan by <strong>imagining</strong> what will happen before acting. I measured how <em>accurate</em> that imagination has to be before it stops helping — and which kinds of inaccuracy hurt the most.</p>
+  <div class="statrow" style="margin-top:clamp(8px,2vh,22px)">
+    <div class="stat"><div class="v">4,680</div><div class="l">simulated trials</div></div>
+    <div class="stat"><div class="v">4</div><div class="l">kinds of error</div></div>
+    <div class="stat"><div class="v">30</div><div class="l">scenarios</div></div>
+  </div>
+  <p class="body" style="color:var(--muted)">Kushaan Naskar · <span class="mono">github.com/Kushaan-N/FidelityFloor</span></p>
+</section>
+
+<!-- 1 · QUESTION -->
+<section class="slide">
+  <div class="eyebrow"><span class="idx">01</span> the question</div>
+  <h2>Everyone measures how good world models <em>are</em>. Nobody measures how good they <em>need to be</em>.</h2>
+  <div class="cols c2">
+    <div>
+      <p class="body">A "world model" is a system's internal simulator: given the current situation and a plan, it predicts what would happen. Robots and AI agents use them to try out actions in imagination before committing.</p>
+      <p class="body" style="margin-top:12px">The field constantly scores these models on prediction quality. But that leaves the practical question open:</p>
+    </div>
+    <ul class="tick">
+      <li>How accurate does imagination have to be before planning with it actually <strong>works</strong>?</li>
+      <li>Are all prediction errors equal — or do some <strong>types</strong> of error hurt much more than others?</li>
+      <li>The answer should be a <strong>curve</strong>: decision quality vs. amount of error, one curve per error type.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 2 · IDEA -->
+<section class="slide">
+  <div class="eyebrow"><span class="idx">02</span> the idea</div>
+  <h2>Use a physics simulator as a world model I can break on purpose</h2>
+  <div class="cols c32">
+    <div style="display:flex;flex-direction:column;gap:clamp(12px,2vh,20px)">
+      <div class="flow">
+        <div class="fbox"><div class="t">Reality</div><div class="d">run the plan in the simulator, perfectly</div></div>
+        <div class="farrow">vs</div>
+        <div class="fbox"><div class="t">Imagination</div><div class="d">run the same plan again, with a controlled amount of error injected</div></div>
+        <div class="farrow">→</div>
+        <div class="fbox"><div class="t">Compare</div><div class="d">how far apart did the two outcomes end up?</div></div>
+      </div>
+      <p class="body">You can't dial the accuracy of a real learned world model up and down. But a simulator can play both roles: the <strong>pristine run is "reality"</strong>, and a <strong>deliberately corrupted second run is the "imperfect imagination."</strong></p>
+      <p class="body">Because both live in the same simulator, the error is <strong>directly measured</strong> (in centimeters of outcome difference) — not just a knob setting. That measured error becomes the x-axis of every result.</p>
+    </div>
+    <figure class="plate">
+      <img src="data:image/jpeg;base64,@@IMG_SCENE@@" alt="Rendered tabletop scene: red cube near green goal disk with blue cylindrical pusher">
+      <figcaption>The test world: use the blue pusher to push the red cube onto the green goal.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 3 · AXES -->
+<section class="slide">
+  <div class="eyebrow"><span class="idx">03</span> four kinds of error</div>
+  <h2>Real world models fail in different ways — I tested each separately</h2>
+  <div class="cols c32">
+    <table>
+      <tr><th>Error type</th><th>Plain meaning</th></tr>
+      <tr><td><span class="kbias">Bias</span></td><td>the model is consistently wrong in the same direction — e.g. thinks every push goes 15° off and too far</td></tr>
+      <tr><td><span class="knoise">Noise</span></td><td>the model is randomly wrong — jittery, but right on average</td></tr>
+      <tr><td><span class="khor">Short horizon</span></td><td>the imagination simply stops early, before the outcome is visible</td></tr>
+      <tr><td style="color:var(--warn);font-weight:600">Blurry pictures</span></td><td>the physics is right but the imagined <em>images</em> are degraded — like a video model's artifacts</td></tr>
+    </table>
+    <p class="body">Each type has three strengths (mild → severe), and I verified the measured error actually grows with each step before trusting any results.</p>
+  </div>
+  <figure class="plate">
+    <img src="data:image/jpeg;base64,@@IMG_SHEET@@" alt="Contact sheet: clean frames on the left, increasingly corrupted frames toward the right">
+    <figcaption>The "blurry pictures" ladder: clean → mild → moderate → severe. At the far right the scene is barely legible.</figcaption>
+  </figure>
+</section>
+
+<!-- 4 · TEST -->
+<section class="slide">
+  <div class="eyebrow"><span class="idx">04</span> the test</div>
+  <h2>Can you still pick the best plan using a flawed imagination?</h2>
+  <div class="cols c2">
+    <div>
+      <ul class="tick">
+        <li>For each of 30 starting scenarios, I generated <strong>12 candidate plans</strong> — one good one, several increasingly-off variants, a few random ones.</li>
+        <li><strong>True quality of each plan:</strong> run it in the perfect simulator, see how close the cube gets to the goal.</li>
+        <li><strong>Imagined quality:</strong> run the same plans through the corrupted imagination and score the imagined outcomes.</li>
+        <li>Then ask: <strong>does the flawed imagination still rank the plans correctly — and does it still pick a good one?</strong></li>
+      </ul>
+    </div>
+    <div>
+      <div class="gatecard" style="margin-bottom:14px">
+        <span class="g">score 1</span><span>Ranking accuracy — how well the imagined ordering of the 12 plans matches the true ordering</span><span></span>
+        <span class="g">score 2</span><span>Regret — how much worse the plan you'd actually <em>pick</em> is, compared to the best one</span><span></span>
+      </div>
+      <p class="body">Sanity checks first: with <strong>zero</strong> corruption, imagination reproduces reality exactly and ranks the plans perfectly. Every run is seeded and reproducible bit-for-bit, and the key predictions were written down <em>before</em> the data came in.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 · RESULT 1 -->
+<section class="slide">
+  <div class="eyebrow"><span class="idx">05</span> result 1</div>
+  <h2>The error types are not created equal</h2>
+  <div class="cols c23">
+    <div style="display:flex;flex-direction:column;gap:clamp(10px,1.8vh,18px)">
+      <ul class="tick">
+        <li><span class="khor">Short horizon</span> is surprisingly harmless: even seeing only the first quarter of the plan, ranking stays good (0.75).</li>
+        <li><span class="knoise">Noise</span> degrades gently and predictably as it grows.</li>
+        <li><span class="kbias">Bias</span> is catastrophic: at the same scale of error, ranking falls to <strong>zero</strong> — no better than shuffling the plans at random.</li>
+      </ul>
+      <div class="legend">
+        <span><b style="color:var(--bias)">●</b> bias</span>
+        <span><b style="color:var(--noise)">■</b> noise</span>
+        <span><b style="color:var(--horizon)">▲</b> short horizon</span>
+      </div>
+      <p class="body" style="color:var(--muted)">Each point: 30 scenarios, error bars are 95% confidence intervals. X-axis is the <em>measured</em> outcome error in meters.</p>
+    </div>
+    <figure class="plate">
+      <img src="data:image/png;base64,@@IMG_FIG1@@" alt="Demand curves: ranking accuracy vs measured error for three error types">
+      <figcaption>Decision quality vs. amount of world-model error, one curve per error type.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 6 · RESULT 2 -->
+<section class="slide">
+  <div class="eyebrow"><span class="idx">06</span> result 2 · the headline</div>
+  <h2>Bias doesn't scramble your ranking.<br>It changes which plan you pick.</h2>
+  <div class="cols c2">
+    <div style="display:flex;flex-direction:column;gap:clamp(12px,2vh,20px)">
+      <p class="body">The cleanest comparison the design allows: take one <span class="kbias">bias</span> condition and one <span class="knoise">noise</span> condition with the <strong>same measured error</strong>, and compare them head-to-head on the same 30 scenarios.</p>
+      <div class="statrow">
+        <div class="stat"><div class="v">same</div><div class="l">ranking accuracy — no detectable difference</div></div>
+        <div class="stat"><div class="v" style="color:var(--bias)">2×</div><div class="l">the regret when you pick under bias</div></div>
+      </div>
+      <p class="body">Why: random errors push each plan's imagined outcome in a different direction and largely cancel out when comparing. A consistent bias pushes <strong>all</strong> plans the same wrong way — which is exactly what fools the final choice.</p>
+      <div class="callout">A consistently-wrong world model costs a planner about <strong>twice as much</strong> as a randomly-wrong one with the same average error. If you're improving a world model for planning, fix the bias first.</div>
+    </div>
+    <figure class="plate">
+      <img src="data:image/png;base64,@@IMG_FIG2@@" alt="Systematic vs stochastic error at matched magnitude">
+      <figcaption>Bias vs. noise at matched error. Predicted before the data: half right — wrong about ranking, right about the final choice.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 7 · VLM -->
+<section class="slide">
+  <div class="eyebrow"><span class="idx">07</span> a second judge</div>
+  <h2>What if an AI has to judge the imagined outcomes by <em>looking</em> at them?</h2>
+  <div class="cols c2">
+    <div>
+      <p class="body">The results so far score outcomes from the simulator's internal state. But many real systems work differently: a vision-language model <strong>looks at the imagined images</strong> and judges them. That's the only setup where "blurry pictures" can matter at all.</p>
+      <p class="body" style="margin-top:12px">First finding: getting an AI to judge reliably is its own problem. Asking it to <em>rate</em> each outcome 0–10 was too coarse — it couldn't even rank <em>perfect</em> images well. Asking it to <strong>estimate the cube-to-goal distance in centimeters</strong> worked much better.</p>
+    </div>
+    <div>
+      <table>
+        <tr><th>How the AI judge is asked</th><th style="text-align:right">Ranking accuracy on perfect images</th></tr>
+        <tr><td>"Rate this outcome 0–10"</td><td class="num" style="text-align:right">0.62 <span class="chip fail">too weak</span></td></tr>
+        <tr><td><strong>"Estimate the distance in cm"</strong></td><td class="num" style="text-align:right"><strong>0.88</strong> <span class="chip pass">used</span></td></tr>
+      </table>
+      <p class="body" style="margin-top:14px">The full image-judged version of the curves is the immediate next step — the pipeline is built and tested; the run takes under an hour.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 · TAKEAWAY -->
+<section class="slide">
+  <div class="eyebrow"><span class="idx">08</span> takeaway</div>
+  <h2>From "how good is it?" to "how good is good enough?"</h2>
+  <div class="cols c2">
+    <div>
+      <p class="smallcap" style="margin-bottom:10px">what exists now</p>
+      <ul class="tick">
+        <li>A reusable instrument: a simulator that plays a world model whose error you can type, dose, and <strong>measure</strong></li>
+        <li>The first demand curves: decision quality vs. measured error, per error type</li>
+        <li>A concrete, pre-registered finding: <strong>bias is what kills planning — not noise, not short horizons</strong></li>
+      </ul>
+    </div>
+    <div>
+      <p class="smallcap" style="margin-bottom:10px">what it enables</p>
+      <ul class="tick">
+        <li>Any real world model can be dropped onto these curves as a single point: "your model's error profile predicts <em>this much</em> decision quality"</li>
+        <li>Image-judged curves (in progress) and a spatial-reasoning version of the same question</li>
+        <li>A principled answer to give any world-model builder: <strong>which error to fix first, and how low it must go</strong></li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout" style="margin-top:clamp(4px,1vh,10px)">One sentence: <strong>I turned "how accurate must imagination be?" from a vibe into a measured curve — and the curve says consistency matters twice as much as precision.</strong></div>
+</section>
+
+</div>
+
+<div class="foot">
+  <span class="mono">FidelityFloor · K. Naskar</span>
+  <div class="dots" id="dots"></div>
+  <span class="mono" id="counter">1 / 9</span>
+</div>
+</div>
+
+<script>
+(function(){
+  var slides=document.getElementById('slides');
+  var n=slides.children.length, i=0;
+  var dots=document.getElementById('dots'), counter=document.getElementById('counter'), rail=document.getElementById('rail');
+  var narrow=window.matchMedia('(max-width:860px)');
+  for(var k=0;k<n;k++){
+    var b=document.createElement('button');
+    b.setAttribute('aria-label','Slide '+(k+1));
+    b.dataset.i=k;
+    b.addEventListener('click',function(e){go(+e.currentTarget.dataset.i);});
+    dots.appendChild(b);
+  }
+  function go(j){
+    i=Math.max(0,Math.min(n-1,j));
+    if(!narrow.matches){slides.style.transform='translateX(-'+(i*100)+'vw)';}
+    else{slides.children[i].scrollIntoView({behavior:'smooth'});}
+    counter.textContent=(i+1)+' / '+n;
+    rail.style.width=((i+1)/n*100)+'%';
+    for(var k=0;k<n;k++) dots.children[k].classList.toggle('on',k===i);
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(i+1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(i-1);}
+    else if(e.key==='Home'){go(0);}
+    else if(e.key==='End'){go(n-1);}
+  });
+  var x0=null;
+  document.addEventListener('touchstart',function(e){x0=e.touches[0].clientX;},{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(x0===null||narrow.matches)return;
+    var dx=e.changedTouches[0].clientX-x0;
+    if(Math.abs(dx)>60) go(i+(dx<0?1:-1));
+    x0=null;
+  },{passive:true});
+  go(0);
+})();
+</script>
