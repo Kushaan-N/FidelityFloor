@@ -1,10 +1,14 @@
 # FidelityFloor
 
-**How good does a world model actually need to be?** A controlled
-fidelity-requirement study using Isaac Sim as a *degradable oracle*: ground truth
-is a pristine execution; "imagination" is a second rollout from the same state
-with controlled, typed corruption injected; downstream decision utility is
-measured at every fidelity level. The deliverables are **demand curves** —
+**How good does a world model actually need to be — for an agent to pick the
+right action with it?** The decision under test is the one every world-model
+planner runs: choose which of K candidate plans to execute, using imagined
+outcomes instead of real trials. A fidelity requirement only exists relative to
+a decision like this; the study measures it with a controlled design using
+Isaac Sim as a *degradable oracle*: ground truth is a pristine execution;
+"imagination" is a second rollout from the same state with controlled, typed
+corruption injected; downstream decision utility is measured at every fidelity
+level. The deliverables are **demand curves** —
 decision quality vs. *measured* world-model error, per error type — that any
 real world model can later be placed on as a single validation point.
 
